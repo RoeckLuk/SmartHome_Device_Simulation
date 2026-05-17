@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>smartHome_Gerätesimulation</title>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --rot: #ff3b30;
+            --gruen: #4cd964;
+            --gelb: #ffd60a;
+            --blau: #0a84ff;
+            --backgroundColor: #0d0d0d;
+            --borderColor: #252525;
+            --hellgrau: #888;
+            --hellblau: rgb(1, 175, 255);
+        }
+
+        body {
+            font-family: sans-serif;
+            background: var(--backgroundColor);
+            color: #ccc;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        header h1 {
+            font-size: 1.6rem;
+            color: #fff;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+        }
+
+        #verbindungsstatus {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: monospace;
+            font-size: 0.75rem;
+            margin-bottom: 36px;
+        }
+
+        #statusPunkt {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #333;
+            transition: background 0.3s, box-shadow 0.3s;
+        }
+
+        #statusPunkt.connected {
+            background: var(--gruen);
+            box-shadow: 0 0 8px var(--gruen);
+        }
+
+        .anordnungGitter {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 24px;
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        .ledKarte, .tempKarte {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            border-radius: 12px;
+            padding: 24px 16px 18px;
+        }
+
+        .ledKarte.active { border-color: var(--accent); }
+
+        .led {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            background: var(--backgroundColor);
+            border: 2px solid var(--borderColor);
+            transition: background 0.25s, box-shadow 0.25s, opacity 0.25s;
+        }
+
+        .on-rot {
+            background: var(--rot);
+            box-shadow: 0 0 28px var(--rot);
+        }
+
+        .on-gruen {
+            background: var(--gruen);
+            box-shadow: 0 0 28px var(--gruen);
+        }
+
+        .on-gelb {
+            background: var(--gelb);
+            box-shadow: 0 0 28px var(--gelb);
+        }
+
+        .on-blau {
+            background: var(--blau);
+            box-shadow: 0 0 28px var(--blau);
+        }
+
+        .helligkeit_Container {
+            width: 100%;
+            height: 4px;
+            background: var(--borderColor);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .helligkeit_bar {
+            height: 100%;
+            width: 0%;
+            transition: width 0.4s ease;
+        }
+
+        .globaler_Status {
+            font-family: monospace;
+            font-size: 0.68rem;
+            color: var(--hellgrau);
+            text-align: center;
+        }
+
+        .element_label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--hellgrau);
+        }
+
+        .temp {
+            width: 100%;
+            transition: background 0.25s, box-shadow 0.25s, opacity 0.25s;
+        }
+
+        .temperatur_Container {
+            width: 100%;
+            height: 80px;
+            background: var(--borderColor);
+            border-radius: 100px;
+            overflow: hidden;
+        }
+
+        .temperatur_bar {
+            height: 100%;
+            width: 0%;
+            background: var(--rot);
+            transition: width 0.4s ease;
+        }
+
+        #log {
+            width: 100%;
+            max-width: 1200px;
+            margin: 28px 28px;
+            background: #000;
+            border: 2px solid var(--borderColor);
+            border-radius: 8px;
+            padding: 10px 12px;
+            height: 160px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 11px;
+            color: var(--gruen);
+        }
+
+        @media (max-width: 1200px) {
+            .anordnungGitter {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 550px) {
+            .anordnungGitter {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <h1>smartHome Gerätesimulation</h1>
+    </header>
+
+    <!-- Statusanzeige {Statuspunkt und Text} -->
+    <div id="verbindungsstatus">
+        <div id="statusPunkt"></div>
+        <span id="label_Verbindungsstatus">Verbinde mit HiveMQ...</span>
+    </div>
+
+    <!-- LEDs -->
+    <div class="anordnungGitter">
+        <!-- ROT -->
+        <div class="ledKarte" id="karte-rot" style="--accent: var(--rot)">
+            <!--led rot Container-->
+            <div class="led" id="led-rot"></div>
+            <div class="element_label">Deckenlampe - Wohnzimmer</div>
+            <!--helligkeit rot Container-->
+            <div class="helligkeit_Container">
+                <div class="helligkeit_bar" id="bar-rot" style="background: var(--rot)"></div>
+            </div>
+            <div class="globaler_Status" id="status-rot">Status: off<br>Helligkeit: —</div>
+        </div>
+
+        <!-- GRÜN -->
+        <div class="ledKarte" id="karte-gruen" style="--accent: var(--gruen)">
+            <!--led gruen Container-->
+            <div class="led" id="led-gruen"></div>
+            <div class="element_label">Stehlampe - Büro</div>
+            <!--helligkeit gruen Container-->
+            <div class="helligkeit_Container">
+                <div class="helligkeit_bar" id="bar-gruen" style="background: var(--gruen)"></div>
+            </div>
+            <div class="globaler_Status" id="status-gruen">Status: off<br>Helligkeit: —</div>
+        </div>
+
+        <!-- GELB -->
+        <div class="ledKarte" id="karte-gelb" style="--accent: var(--gelb)">
+            <!--led gelb Container-->
+            <div class="led" id="led-gelb"></div>
+            <div class="element_label">Lampe - Schlafzimmer</div>
+            <!--helligkeit gelb Container-->
+            <div class="helligkeit_Container">
+                <div class="helligkeit_bar" id="bar-gelb" style="background: var(--gelb)"></div>
+            </div>
+            <div class="globaler_Status" id="status-gelb">Status: off<br>Helligkeit: —</div>
+        </div>
+
+        <!-- BLAU -->
+        <div class="ledKarte" id="karte-blau" style="--accent: var(--blau)">
+            <!--led blau Container-->
+            <div class="led" id="led-blau"></div>
+            <div class="element_label">Küchenspots - Küche</div>
+            <!--helligkeit blau Container-->
+            <div class="helligkeit_Container">
+                <div class="helligkeit_bar" id="bar-blau" style="background: var(--blau)"></div>
+            </div>
+            <div class="globaler_Status" id="status-blau">Status: off<br>Helligkeit: —</div>
+        </div>
+        
+    <!-- Temperaturen -->
+        <!-- Temperatur 1 -->
+        <div class="tempKarte">
+            <div class="temp" id="karteTemp1">
+                <!-- Temperatur Bar -->
+                <div class="temperatur_Container">
+                    <div class="temperatur_bar" id="bar-temp1"></div>
+                </div>
+            </div>
+            <div class="element_label">Sensor Wohnzimmer</div>
+            <div class="globaler_Status" id="status-temp1">Status: off<br>Temperatur: —</div>
+        </div>
+
+        <!-- Temperatur 2 -->
+        <div class="tempKarte">
+            <div class="temp" id="karteTemp2">
+                <!-- Temperatur Bar -->
+                <div class="temperatur_Container">
+                    <div class="temperatur_bar" id="bar-temp2"></div>
+                </div>
+            </div>
+            <div class="element_label">Sensor Küche</div>
+            <div class="globaler_Status" id="status-temp2">Status: off<br>Temperatur: —</div>
+        </div>
+
+        <!-- Temperatur 3 -->
+        <div class="tempKarte">
+            <div class="temp" id="karteTemp3">
+                <!-- Temperatur Bar -->
+                <div class="temperatur_Container">
+                    <div class="temperatur_bar" id="bar-temp3"></div>
+                </div>
+            </div>
+            <div class="element_label">Thermostat Schlafzimmer</div>
+            <div class="globaler_Status" id="status-temp3">Status: off<br>Temperatur: —</div>
+        </div>
+
+        <!-- Temperatur 4 -->
+        <div class="tempKarte">
+            <div class="temp" id="karteTemp4">
+                <!-- Temperatur Bar -->
+                <div class="temperatur_Container">
+                    <div class="temperatur_bar" id="bar-temp4"></div>
+                </div>
+            </div>
+            <div class="element_label">Thermostat Büro</div>
+            <div class="globaler_Status" id="status-temp4">Status: off<br>Temperatur: —</div>
+        </div>
+    </div>
+
+    <!-- Ausgabemonitor -->
+    <div id="log">Log gestartet...<br></div>
+
+    <script>
+        // MQTT Konfiguration
+        const BASIS = 'smartHome/esp32s3';
+        const WILDCARD = BASIS + '/#';
+
+        // Mapping MQTT Topics -> UI Elemente
+        const LIGHTS = {
+            "light/wohnzimmer": "rot",
+            "light/buero": "gruen",
+            "light/schlafzimmer": "gelb",
+            "light/kueche": "blau"
+        };
+
+        const TEMPERATURES = {
+            "temperature/wohnzimmer": "temp1",
+            "temperature/kueche": "temp2",
+            "thermostat/bedroom": "temp3",
+            "thermostat/office": "temp4"
+        };
+
+        // ═══════════════════════════════ Monitor Ausgabe ═══════════════════════════════
+        const monitorAusgabe = document.getElementById('log');
+
+        function ausgabeMonitor(message) {
+            const zeit = new Date().toLocaleTimeString('de-DE');
+            monitorAusgabe.innerHTML += '[' + zeit + '] ' + message + '<br>';
+            monitorAusgabe.scrollTop = monitorAusgabe.scrollHeight;
+        }
+
+        // ═══════════════════════════════ LED Aktualisierung ═══════════════════════════════
+        function aktualisiereLedStatus(id, payload) {
+            let daten;
+
+            try {
+                daten = JSON.parse(payload);
+            } catch (e) {
+                ausgabeMonitor('Ungültiges JSON: ' + payload);
+                return;
+            }
+
+            const status = daten.state || "off";
+            const brightness = parseInt(daten.brightness) || 0;
+            const ledElement = document.getElementById('led-' + id);
+            const karte = document.getElementById('karte-' + id);
+            const bar = document.getElementById('bar-' + id);
+            const metaStatus = document.getElementById('status-' + id);
+            const istAn = status === 'on';
+            const helligkeit = Math.max(0, Math.min(100, brightness));
+
+            
+            ledElement.className = 'led' + (istAn ? ' on-' + id : ''); // LED Darstellung
+            ledElement.style.opacity = istAn ? (0.2 + helligkeit / 100) : 0.15; // Transparenz nach Helligkeit
+            bar.style.width = istAn ? helligkeit + '%' : '0%'; // Helligkeitsbalken
+            karte.classList.toggle('active', istAn); // Karte aktiv
+            metaStatus.innerHTML = 'Status: ' + status + '<br>Helligkeit: ' + helligkeit + '%'; // Text anzeigen
+        }
+
+        // ═══════════════════════════════ Temperatur Aktualisierung ═══════════════════════════════
+        function aktualisiereTemperatur(id, payload) {
+            let daten;
+
+            try {
+                daten = JSON.parse(payload);
+            } catch (e) {
+                ausgabeMonitor('Ungültiges JSON: ' + payload);
+                return;
+            }
+            const status = daten.state || "off";
+            const temperatur = parseFloat(daten.temperature) || 0;
+            const bar = document.getElementById('bar-' + id);
+            const metaStatus = document.getElementById('status-' + id);
+
+            
+            const prozent = Math.max(0, Math.min(100, (temperatur - (0)) / (60 - (0)) * 100)); // Temperaturbereich 0°C bis 60°C
+
+            metaStatus.innerHTML = 'Status: ' + status + '<br>Temperatur: ' + temperatur.toFixed(1) + ' °C'; // Text anzeigen
+            bar.style.width = prozent + '%'; // Balken setzen
+            bar.style.opacity = status === 'on' ? 1 : 0.25; // Transparenz bei ausgeschaltenem Zustand
+        }
+
+        // ═══════════════════════════════ MQTT Verbindung ═══════════════════════════════
+        const statusPunkt = document.getElementById('statusPunkt');
+        const statusLabel = document.getElementById('label_Verbindungsstatus');
+
+        const client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt');
+
+        client.on('connect', function () {
+            statusPunkt.classList.add('connected');
+            statusLabel.textContent = 'Verbunden mit HiveMQ';
+
+            ausgabeMonitor('Verbunden mit Broker');
+            client.subscribe(WILDCARD);
+        });
+
+        // ═══════════════════════════════ MQTT Nachrichten ═══════════════════════════════
+        client.on('message', function (topic, payload) {
+            const message = payload.toString();
+            // Prefix entfernen
+            const top = topic.replace(BASIS + '/', '');
+
+            ausgabeMonitor('↓ ' + top + ': ' + message);
+            // LEDs
+            if (LIGHTS[top]) aktualisiereLedStatus( LIGHTS[top], message );
+
+            // Temperaturen
+            if (TEMPERATURES[top]) aktualisiereTemperatur( TEMPERATURES[top], message );
+        });
+
+        // ═══════════════════════════════ Fehler ═══════════════════════════════
+        client.on('error', (e) => { ausgabeMonitor('Fehler: ' + e.message); });
+
+    </script>
+</body>
+
+</html>
