@@ -1,5 +1,4 @@
 # smartHome_Dashboard
-# smartHome_Dashboard
 
 SmartHome Device Simulation – A real-time browser-based visualizer 
 for Smart Home devices communicating via MQTT over WebSocket. 
